@@ -22,6 +22,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Missing coupon code" }, { status: 400 })
     }
 
+    // Check for hardcoded coupons first (for backward compatibility)
+    const validHardcodedCoupons = process.env.VALID_COUPON_CODES?.split(',') || ["NAIROBI"]
+    if (validHardcodedCoupons.includes(couponCode)) {
+      return NextResponse.json({
+        valid: true,
+        discount_type: "fixed",
+        discount_value: 100
+      })
+    }
+
     // Check if coupon exists and is valid
     const { data, error } = await supabase
       .from("coupons")

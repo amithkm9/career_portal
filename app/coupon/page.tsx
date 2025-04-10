@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
-import { Ticket, ArrowRight, CheckCircle2, AlertCircle, Info } from "lucide-react"
+import { Ticket, ArrowRight, CheckCircle2, AlertCircle, Info, Loader2 } from "lucide-react"
 
 export default function CouponPage() {
   const [couponCode, setCouponCode] = useState("")
@@ -18,7 +18,6 @@ export default function CouponPage() {
   const [status, setStatus] = useState<"idle" | "success" | "error" | "info">("idle")
   const [message, setMessage] = useState<string | null>(null)
   const [countdown, setCountdown] = useState<number | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string | null>(null)
   const router = useRouter()
   const { user } = useAuth()
 
@@ -54,60 +53,53 @@ export default function CouponPage() {
     }
   }, [countdown, router])
 
-  // Update the validateCoupon function to handle different scheduling links
   const validateCoupon = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsValidating(true)
     setStatus("idle")
     setMessage(null)
-    setDebugInfo(null)
 
     try {
       // Trim the coupon code to handle whitespace
       const trimmedCode = couponCode.trim()
+      
+      if (!trimmedCode) {
+        setStatus("error")
+        setMessage("Please enter a coupon code")
+        setIsValidating(false)
+        return
+      }
 
-      // Log for debugging
-      console.log("Validating coupon code:", trimmedCode)
-      setDebugInfo(`Validating code: "${trimmedCode}"`)
+      if (!user) {
+        setStatus("error")
+        setMessage("You must be logged in to apply a coupon")
+        setIsValidating(false)
+        return
+      }
 
-      // Check if the coupon code is "NAIROBI" (case-sensitive)
-      if (trimmedCode === "NAIROBI") {
-        // Update user profile to mark payment as done
-        if (user) {
-          try {
-            setDebugInfo(`User ID: ${user.id}, Updating profile...`)
+      // Call our new API endpoint to validate the coupon
+      const response = await fetch("/api/validate-coupon", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          couponCode: trimmedCode,
+          userId: user.id,
+        }),
+      })
 
-            const { error } = await supabase
-              .from("profiles")
-              .update({
-                payment_done: true,
-                coupon_code: trimmedCode,
-              })
-              .eq("id", user.id)
+      const data = await response.json()
 
-            if (error) {
-              setDebugInfo(`Update error: ${error.message}`)
-              throw error
-            }
-
-            setDebugInfo(`Profile updated successfully`)
-          } catch (updateError) {
-            console.error("Error updating profile:", updateError)
-            setDebugInfo(`Update error: ${updateError instanceof Error ? updateError.message : String(updateError)}`)
-            throw updateError
-          }
-        }
-
+      if (data.valid) {
         // Show success message and start countdown
         setStatus("success")
-        setMessage(
-          "Coupon applied successfully! You now have full access to the platform. Schedule your counseling session with Sandra Anyango.",
-        )
+        setMessage(data.message || "Coupon applied successfully! You now have full access to the platform.")
         setCountdown(5) // 5 second countdown before redirect
       } else {
         // Invalid coupon code
         setStatus("error")
-        setMessage(`Invalid coupon code. Please try again or proceed to payment. You entered: "${trimmedCode}"`)
+        setMessage(data.message || "Invalid coupon code. Please try again or proceed to payment.")
       }
     } catch (error) {
       console.error("Error validating coupon:", error)
@@ -120,6 +112,14 @@ export default function CouponPage() {
 
   const skipToPayment = () => {
     router.push("/payments")
+  }
+
+  const getSchedulingLink = () => {
+    // Check if the coupon code is NAIROBI to determine which counselor to use
+    if (couponCode.trim().toUpperCase() === "NAIROBI") {
+      return "https://cal.com/sandra-anyango/60min?duration=60"
+    }
+    return "https://cal.com/unnathi-pai/career-counselling-with-unnathi"
   }
 
   return (
@@ -173,7 +173,7 @@ export default function CouponPage() {
                       <Button
                         variant="outline"
                         className="bg-green-600/20 border-green-500 text-green-400 hover:bg-green-600/30 hover:text-green-300"
-                        onClick={() => window.open("https://cal.com/sandra-anyango/60min?duration=60", "_blank")}
+                        onClick={() => window.open(getSchedulingLink(), "_blank")}
                       >
                         Schedule Counseling Session
                       </Button>
@@ -201,18 +201,19 @@ export default function CouponPage() {
                 </Alert>
               )}
 
-              {debugInfo && (
-                <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-800/50 rounded">
-                  <p>Debug info: {debugInfo}</p>
-                </div>
-              )}
-
               <Button
                 type="submit"
                 className="w-full bg-[#0066FF] hover:bg-[#0066FF]/90 text-white"
                 disabled={isValidating || status === "success"}
               >
-                {isValidating ? "Validating..." : "Apply Coupon"}
+                {isValidating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Validating...
+                  </>
+                ) : (
+                  "Apply Coupon"
+                )}
               </Button>
             </form>
           </CardContent>
@@ -246,4 +247,3 @@ export default function CouponPage() {
     </div>
   )
 }
-
