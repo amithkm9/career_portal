@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { supabase } from "@/lib/supabase"
 import { RoleSelector } from "@/components/auth/role-selector"
+import { Loader2 } from "lucide-react"
 
 function getRedirectFrom(searchParams: URLSearchParams) {
   return searchParams.get("redirectedFrom") || "/"
@@ -65,9 +66,10 @@ function LoginPageContent() {
       })
       if (error) throw error
 
-      // If verification successful, redirect to role selection
+      // If verification successful, auth context will handle the phone number check and redirects
       if (data.user) {
-        router.push("/role-selection")
+        // The auth context will handle redirects based on whether phone number exists
+        setMessage("Verification successful! Redirecting...")
       }
     } catch (error) {
       setMessage("Invalid OTP")
@@ -80,7 +82,7 @@ function LoginPageContent() {
   const handleGoogleSignIn = async () => {
     try {
       await signInWithGoogle()
-      // Role selection will be handled by the auth context
+      // Auth context will handle the phone number check and role selection
     } catch (error) {
       console.error("Google sign in error:", error)
       setMessage("Error signing in with Google")
@@ -120,7 +122,14 @@ function LoginPageContent() {
                 className="bg-background/50 border-[#0066FF]/30 focus:border-[#0066FF]"
               />
               <Button type="submit" className="w-full bg-[#0066FF] hover:bg-[#0066FF]/90 text-white" disabled={loading}>
-                {loading ? "Sending OTP..." : "Continue with Email"}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending OTP...
+                  </>
+                ) : (
+                  "Continue with Email"
+                )}
               </Button>
             </form>
           ) : (
@@ -134,7 +143,14 @@ function LoginPageContent() {
                 className="bg-background/50 border-[#0066FF]/30 focus:border-[#0066FF]"
               />
               <Button type="submit" className="w-full bg-[#0066FF] hover:bg-[#0066FF]/90 text-white" disabled={loading}>
-                {loading ? "Verifying..." : "Verify OTP"}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  "Verify OTP"
+                )}
               </Button>
             </form>
           )}
@@ -188,4 +204,3 @@ export default function LoginPage() {
     </Suspense>
   )
 }
-

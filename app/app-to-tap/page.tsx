@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -77,7 +77,7 @@ const questions: Question[] = [
   },
   {
     id: "student",
-    question: "What’s your top priority right now?",
+    question: "What's your top priority right now?",
     options: [
       "Find a career that matches my passion",
       "Land a high-paying job quickly",
@@ -93,7 +93,7 @@ const questions: Question[] = [
   },
   {
     id: "working",
-    question: "What’s missing in your current role?",
+    question: "What's missing in your current role?",
     options: ["Growth & new challenges", "Better work-life balance", "Alignment with my real interests", "Other"],
     followUp: {
       "Growth & new challenges": "ai_replaceable",
@@ -104,7 +104,7 @@ const questions: Question[] = [
   },
   {
     id: "prev_working",
-    question: "What’s your biggest challenge?",
+    question: "What's your biggest challenge?",
     options: [
       "Unclear about the right next step",
       "Need to build confidence",
@@ -120,11 +120,11 @@ const questions: Question[] = [
   },
   {
     id: "unemployed",
-    question: "What’s the toughest part of deciding on a career?",
-    options: ["Not knowing where to start", "Too many options, can’t pick", "Fear of choosing the wrong path", "Other"],
+    question: "What's the toughest part of deciding on a career?",
+    options: ["Not knowing where to start", "Too many options, can't pick", "Fear of choosing the wrong path", "Other"],
     followUp: {
       "Not knowing where to start": "ai_replaceable",
-      "Too many options, can’t pick": "ai_replaceable",
+      "Too many options, can't pick": "ai_replaceable",
       "Fear of choosing the wrong path": "ai_replaceable",
       Other: "ai_replaceable",
     },
@@ -184,11 +184,40 @@ export default function AppToTapContent() {
   const { user } = useAuth()
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(-1)
   const [answers, setAnswers] = useState<Record<string, string>>({})
-  const [name, setName] = useState("") // Changed from "Vee" to empty string
-  const [contactNumber, setContactNumber] = useState("") // Changed from "89897" to empty string
+  const [name, setName] = useState("") 
+  const [contactNumber, setContactNumber] = useState("") 
   const [questionPath, setQuestionPath] = useState<number[]>([])
   const [showPopup, setShowPopup] = useState(false)
   const [popupText, setPopupText] = useState("")
+  const [hasCheckedPhoneNumber, setHasCheckedPhoneNumber] = useState(false)
+
+  useEffect(() => {
+    if (user && !hasCheckedPhoneNumber) {
+      checkExistingProfile()
+      setHasCheckedPhoneNumber(true)
+    }
+  }, [user, hasCheckedPhoneNumber])
+
+  const checkExistingProfile = async () => {
+    if (!user) return
+
+    try {
+      // Check if user profile already exists and has a phone number
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("name, phone_number")
+        .eq("id", user.id)
+        .single()
+
+      if (!error && data) {
+        // If the profile exists, set the name and phone number
+        if (data.name) setName(data.name)
+        if (data.phone_number) setContactNumber(data.phone_number)
+      }
+    } catch (error) {
+      console.error("Error checking existing profile:", error)
+    }
+  }
 
   const handleAnswer = (answer: string) => {
     const currentQuestion = questions[currentQuestionIndex]
@@ -402,4 +431,3 @@ export default function AppToTapContent() {
     </ProtectedRoute>
   )
 }
-

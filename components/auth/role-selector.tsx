@@ -1,29 +1,71 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { User, Briefcase } from "lucide-react"
+import { User, Briefcase, Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { PhoneCheck } from "@/components/auth/phone-check"
 
 export function RoleSelector() {
   const [selectedRole, setSelectedRole] = useState<"student" | "counselor" | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [showPhoneCheck, setShowPhoneCheck] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | undefined>(undefined)
   const router = useRouter()
 
+  // Get current user on component mount
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data } = await supabase.auth.getUser()
+      if (data.user) {
+        setCurrentUserId(data.user.id)
+        setUserEmail(data.user.email)
+        
+        // Check if user has a phone number
+        checkPhoneNumber(data.user.id)
+      }
+    }
+    
+    getCurrentUser()
+  }, [])
+
+  // Function to check if phone number exists
+  const checkPhoneNumber = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("phone_number")
+        .eq("id", userId)
+        .single()
+
+      if (error && error.code !== "PGRST116") {
+        console.error("Error checking phone number:", error)
+        return true // Default to not showing prompt if there's an error
+      }
+
+      // If data exists and has a non-empty phone number, return true
+      return data && data.phone_number && data.phone_number.trim() !== ""
+    } catch (error) {
+      console.error("Error in checkPhoneNumber:", error)
+      return true // Default to not showing prompt if there's an error
+    }
+  }
+
   const handleContinue = async () => {
-    if (!selectedRole) return
+    if (!selectedRole || !currentUserId) return
 
     setIsLoading(true)
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        router.push("/login")
+      // Check if user has a phone number
+      const hasPhoneNumber = await checkPhoneNumber(currentUserId)
+      
+      if (!hasPhoneNumber) {
+        setShowPhoneCheck(true)
+        setIsLoading(false)
         return
       }
 
@@ -33,7 +75,7 @@ export function RoleSelector() {
         const { data: counselorData, error: counselorError } = await supabase
           .from("career_counselors")
           .select("id")
-          .eq("id", user.id)
+          .eq("id", currentUserId)
           .single()
 
         if (counselorError && counselorError.code === "PGRST116") {
@@ -46,7 +88,7 @@ export function RoleSelector() {
       } else {
         // For students, update their profile without setting a role
         const { error: updateError } = await supabase.from("profiles").upsert({
-          id: user.id,
+          id: currentUserId,
           // No role field needed as all profiles are students
         })
 
@@ -58,7 +100,7 @@ export function RoleSelector() {
         const { data, error } = await supabase
           .from("profiles")
           .select("atp_done, payment_done")
-          .eq("id", user.id)
+          .eq("id", currentUserId)
           .single()
 
         if (error) {
@@ -88,6 +130,12 @@ export function RoleSelector() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handlePhoneCheckClose = () => {
+    setShowPhoneCheck(false)
+    // Continue with the role selection process
+    handleContinue()
   }
 
   return (
@@ -154,13 +202,29 @@ export function RoleSelector() {
                 disabled={!selectedRole || isLoading}
                 onClick={handleContinue}
               >
-                {isLoading ? "Processing..." : "Continue"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  "Continue"
+                )}
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Phone number check dialog */}
+      {showPhoneCheck && currentUserId && (
+        <PhoneCheck
+          userId={currentUserId}
+          userEmail={userEmail}
+          isOpen={showPhoneCheck}
+          onClose={handlePhoneCheckClose}
+        />
+      )}
     </div>
   )
 }
-
